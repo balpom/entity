@@ -1,0 +1,22 @@
+{
+    "name": "balpom/entity",
+    "description": "Entity is data modelling framework for DDD projects.",
+    "type": "library",
+    "homepage": "https://www.balpom.ru",
+    "license": "MIT",
+    "keywords": ["DDD", "Domain Driven Design", "entity", "data", "modelling", "framework", "model", "clear", "content", "abstract", "item", "unit", "repository", "storage", "store", "universal", "information", "quant", "database"],
+    "autoload": {
+        "psr-4": {
+            "Balpom\\Entity\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Mikhail (Balpom)"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "ramsey/uuid": "^4.8"
+    }
+}

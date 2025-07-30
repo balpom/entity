@@ -12,8 +12,7 @@ class StructureCollection implements StructureCollectionInterface
     const TYPE = StructureInterface::class; // May be changed in children classes.
 
     protected array $collection = [];
-    protected array $index = [];
-    private int $position = 0;
+    protected int $position = 0;
 
     public function add(StructureInterface $structure): void
     {
@@ -57,14 +56,7 @@ class StructureCollection implements StructureCollectionInterface
 
     public function offsetSet(mixed $offset, mixed $value): void
     {
-        if ('integer' !== gettype($offset)) {
-            throw new StructureCollectionException('Given offset must be integer');
-        }
-
-        $class = StructureCollection::TYPE;
-        if (!is_object($value) || !($value instanceof $class)) {
-            throw new StructureCollectionException('Given value must be instance of ' . $class);
-        }
+        $this->checkOffsetSet($offset, $value);
 
         if (is_null($offset)) {
             $this->collection[] = $value;
@@ -77,6 +69,18 @@ class StructureCollection implements StructureCollectionInterface
     {
         if (isset($this->collection[$offset])) {
             unset($this->collection[$offset]);
+        }
+    }
+
+    protected function checkOffsetSet(mixed $offset, mixed $value): void
+    {
+        if ('integer' !== gettype($offset)) {
+            throw new StructureCollectionException('Given offset must be integer');
+        }
+
+        $class = StructureCollection::TYPE;
+        if (!is_object($value) || !($value instanceof $class)) {
+            throw new StructureCollectionException('Given value must be instance of ' . $class);
         }
     }
 

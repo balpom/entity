@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Balpom\Entity;
 
 interface StructureInterface
@@ -12,6 +14,18 @@ interface StructureInterface
       self::$field['description'] = ['string' => false];
       self::$field['content'] = ['string' => false];
       }
+     *
+     * getFields() returns:
+      array [
+      'title' => ['string' => true],
+      'description' => ['string' => false],
+      'content' => ['string' => false]
+      ]
      */
     public function getFields(): array;
+
+    /*
+     * Returns TRUE if $key exists, returns FALSE if $key not exist.
+     */
+    public function hasField(string|int|float $field): bool;
 }

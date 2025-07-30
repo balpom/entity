@@ -8,7 +8,8 @@ use Balpom\Entity\StructureInterface;
 
 abstract class AbstractStructure implements StructureInterface
 {
-    protected array $enabledTypes = ['string', 'array', 'object', 'bool', 'integer', 'float'];
+    protected array $enabledTypes = ['string', 'array', 'object', 'boolean', 'integer', 'double'];
+    protected array $typesSynonyms = ['float' => 'double', 'bool' => 'boolean'];
     protected array $values = [];
     protected static $field = [];
     protected string $rootClass = '';
@@ -16,6 +17,7 @@ abstract class AbstractStructure implements StructureInterface
     protected array $creationErrors = [];
     private array $hierarchy = [];
     private array $fields = [];
+    protected static bool $createFromArray = false;
 
     /*
      * Simple sample, what showing as Structure fields is defined.
@@ -52,7 +54,7 @@ abstract class AbstractStructure implements StructureInterface
       protected static function fields(): void
       {
       self::$field['field3'] = ['integer' => true];
-      self::$field['field4'] = ['array' => true];
+      self::$field['field4'] = ['array' => false];
       self::$field['field5'] = ['bool' => false];
       }
       }
@@ -80,15 +82,39 @@ abstract class AbstractStructure implements StructureInterface
      */
     public function __construct(...$values)
     {
+        if (self::$createFromArray) {
+            $key = array_key_first($values);
+            if (0 !== $key) {
+                $class = get_called_class();
+                throw new StructureCreationException('Incorrect array for ' . $class . ' class creation.');
+            }
+            $values = $values[$key];
+            self::$createFromArray = false;
+        }
+
         $this->init();
         $this->fill($values);
     }
 
-    final public function hasKey(string|int|float $key): bool
+    /*
+     * Additional third way to create Structure is createFromArray() method usage:
+     *
+     * $values = ['field1' => 'value1', 'field2' => null, 'field3' => 7777777];
+     * $structure = Test::createFromArray($values);
+     *
+     */
+    public static function createFromArray(array $values): StructureInterface
+    {
+        self::$createFromArray = true;
+        $class = get_called_class();
+        return new $class($values);
+    }
+
+    public function hasField(string|int|float $field): bool
     {
         $fields = $this->getFields();
 
-        return isset($fields[$key]);
+        return isset($fields[$field]);
     }
 
     public function __call(string $method, array $params): string|array|object|bool|int|float|null
@@ -97,21 +123,25 @@ abstract class AbstractStructure implements StructureInterface
             throw new StructureUsageException('Method ' . $method . ' not exists.');
         }
 
-        $first = substr($method, 3, 1);
-        $capital = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        if (!str_contains($capital, $first)) {
-            throw new StructureUsageException('Incorrrect method name.');
-        }
+        //$first = substr($method, 3, 1);
+        //$capital = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        /*
+          if (!str_contains($capital, $first)) {
+          throw new StructureUsageException('Incorrrect method name.');
+          }
+         */
+        ////$field = lcfirst(substr($method, 3));
+        $field = substr($method, 3);
+        $sanitizedField = mb_strtolower($field);
 
-        $field = lcfirst(substr($method, 3));
-        if (!str_contains($capital, $first) || !array_key_exists($field, $this->values)) {
+        if (!array_key_exists($sanitizedField, $this->values)) {
             throw new StructureUsageException('Field ' . $field . ' not exists.');
         }
 
-        return $this->values[$field];
+        return $this->values[$sanitizedField];
     }
 
-    final public function getFields(): array
+    public function getFields(): array
     {
         if (!empty($this->fields)) {
             return $this->fields;
@@ -124,10 +154,24 @@ abstract class AbstractStructure implements StructureInterface
             $classFields = $class::getStructureFields($class);
             if (!empty($classFields)) {
                 foreach ($classFields as $field => $properties) {
+                    //$field = mb_strtolower($field);
+                    $type = key($properties);
+                    if (isset($this->typesSynonyms[$type])) {
+                        $notNull = $properties[$type];
+                        $type = $this->typesSynonyms[$type];
+                        $properties = [];
+                        $properties[$type] = $notNull;
+                    }
                     $fields[$field] = $properties;
                 }
             }
         }
+        /*
+          foreach ($fields as $field => $properties) {
+          $field = mb_strtolower($field);
+          $this->fields[$field] = $properties;
+          }
+         */
         $this->fields = $fields;
 
         return $this->fields;
@@ -148,7 +192,7 @@ abstract class AbstractStructure implements StructureInterface
     final protected function fill(array $values): void
     {
         $fields = $this->getFields();
-        $this->checkValues($values, $fields);
+        $values = $this->sanitizeValues($values, $fields);
         $fieldsCount = count($fields); // May be empty non abstract structure. :-)
 
         /*
@@ -169,84 +213,63 @@ abstract class AbstractStructure implements StructureInterface
 
     final protected function fillValues(array $fields, array $values): void
     {
+        $fieldsCount = count($fields);
+        $valuesCount = count($values);
+
+        if ($fieldsCount < $valuesCount) {
+            throw new StructureCreationException('Values number must be less or equal ' . $fieldsCount . ', but ' . $valuesCount . ' given.');
+        }
+
+        $hasErrors = false;
+
         if (0 === array_key_first($values)) {
             $num = 0;
-        } else {
-            $num = false;
-        }
-        $hasErrors = false;
-        foreach ($fields as $field => $properties) {
-            $definitionError = '';
-            $creationError = '';
+            while ('integer' === gettype(key($values))) {
+                $value = array_shift($values);
+                $field = key($fields);
+                $sanitizedField = mb_strtolower($field);
+                $parameters = array_shift($fields);
 
-            if (false === $num) {
-                $num = $field;
-            }
-            if (array_key_exists($field, $values)) {
-                $value = $values[$field];
-                $index = $field;
-            } else {
-                $index = $num;
-            }
-
-            $type = key($properties);
-            $required = $properties[$type]; // TRUE | FALSE (NOT NULL | may be NULL)
-            $value = $values[$index] ?? null;
-            $givenType = gettype($value);
-
-            if (!(null === $value && !$required)) {
-                if ('object' !== $givenType && !('string' === gettype($type) && class_exists($type))) {
-                    if (!in_array($type, $this->enabledTypes)) {
-                        $definitionError = 'Field ' . $field . ' has not enables type ' . $type . '.';
-                    }
-                    if ('NULL' === $givenType) {
-                        if ($required) {
-                            if ('integer' === gettype($index)) {
-                                $creationError = 'Value number ' . $index . ' must be NOT NULL.';
-                            } else {
-                                $creationError = 'Value with field ' . $index . ' must be NOT NULL.';
-                            }
-                        }
-                    } elseif ($type !== $givenType) {
-                        if ('integer' === gettype($index)) {
-                            $creationError = 'Value number ' . $index . ' must be ' . $type . ', ' . $givenType . ' given.';
-                        } else {
-                            $creationError = 'Value with field ' . $index . ' must be ' . $type . ', ' . $givenType . ' given.';
-                        }
-                    }
-                } else {
-                    $givenClass = get_class($value);
-                    if (!is_a($value, $this->rootClass)) {
-                        if ('integer' === gettype($index)) {
-                            $definitionError = 'Value number ' . $index . ' must be ' . $this->rootClass . ' type, ' . $givenClass . ' given.';
-                        } else {
-                            $definitionError = 'Value with field ' . $index . ' must be ' . $this->rootClass . ' type, ' . $givenClass . ' given.';
-                        }
-                    }
-                    if ($type !== $givenClass && !(class_exists($givenClass) && is_a($value, $type))) {
-                        if ('integer' === gettype($index)) {
-                            $creationError = 'Value number ' . $index . ' must be ' . $type . ', ' . $givenClass . ' given.';
-                        } else {
-                            $creationError = 'Value with field ' . $index . ' must be ' . $type . ', ' . $givenClass . ' given.';
-                        }
-                    }
+                $checkResult = $this->checkValues($field, $value, $parameters);
+                if (!$hasErrors && !$checkResult) {
+                    $hasErrors = true;
                 }
-            }
-            $num++;
 
-            if (!$hasErrors && ($definitionError || $creationError)) {
-                $hasErrors = true;
-            }
-            if (!$hasErrors) {
-                $this->values[$field] = $value;
-            }
+                if (!$hasErrors) {
+                    $this->values[$sanitizedField] = $value;
+                }
 
-            if ($definitionError) {
-                $this->definitionErrors[] = $definitionError;
+                //echo 'NNN ' . $field . ' => ' . $value . PHP_EOL;
             }
-            if ($creationError) {
-                $this->creationErrors[] = $creationError;
+        }
+
+        if ('string' === gettype(array_key_first($values))) {
+            foreach ($fields as $field => $parameters) {
+                $sanitizedField = mb_strtolower($field);
+                if (array_key_exists($sanitizedField, $values)) {
+                    $value = $values[$sanitizedField];
+                    unset($values[$sanitizedField]);
+                } else {
+                    $value = null;
+                }
+
+                $checkResult = $this->checkValues($field, $value, $parameters);
+                if (!$hasErrors && !$checkResult) {
+                    $hasErrors = true;
+                }
+
+                if (!$hasErrors) {
+                    $this->values[$sanitizedField] = $value;
+                }
+
+                //echo 'SSS ' . $field . ' => ' . $value . PHP_EOL;
             }
+        }
+
+        if (!empty($values)) {
+            $excessiveFields = array_keys($values);
+            $excessiveFields = implode(',', $excessiveFields);
+            throw new StructureCreationException('Unknown error - excessive fields: ' . $excessiveFields);
         }
 
         if (!empty($this->definitionErrors)) {
@@ -257,6 +280,69 @@ abstract class AbstractStructure implements StructureInterface
             $creationError = implode(PHP_EOL, $this->creationErrors);
             throw new StructureCreationException($creationError);
         }
+    }
+
+    private function checkValues(int|string $field, mixed $value, array $parameters): bool
+    {
+        $noErrors = true;
+        $type = key($parameters);
+        $required = $parameters[$type]; // TRUE | FALSE (NOT NULL | may be NULL)
+        $givenType = gettype($value);
+
+        if (null === $value && !$required) {
+            return $noErrors;
+        }
+
+        $definitionError = false;
+        $creationError = false;
+
+        if ('object' !== $givenType && !('string' === gettype($type) && class_exists($type))) {
+            if (!in_array($type, $this->enabledTypes)) {
+                $definitionError = 'Field ' . $field . ' has not enables type ' . $type . '.';
+            }
+            if ('NULL' === $givenType) {
+                if ($required) {
+                    if ('integer' === gettype($field)) {
+                        $creationError = 'Value number ' . $field . ' must be NOT NULL.';
+                    } else {
+                        $creationError = 'Value with field ' . $field . ' must be NOT NULL.';
+                    }
+                }
+            } elseif ($type !== $givenType) {
+                if ('integer' === gettype($field)) {
+                    $creationError = 'Value number ' . $field . ' must be ' . $type . ', ' . $givenType . ' given.';
+                } else {
+                    $creationError = 'Value with field ' . $field . ' must be ' . $type . ', ' . $givenType . ' given.';
+                }
+            }
+        } else {
+            $givenClass = get_class($value);
+            if (!is_a($value, $this->rootClass)) {
+                if ('integer' === gettype($field)) {
+                    $definitionError = 'Value number ' . $field . ' must be ' . $this->rootClass . ' type, ' . $givenClass . ' given.';
+                } else {
+                    $definitionError = 'Value with field ' . $field . ' must be ' . $this->rootClass . ' type, ' . $givenClass . ' given.';
+                }
+            }
+            if ($type !== $givenClass && !(class_exists($givenClass) && is_a($value, $type))) {
+                if ('integer' === gettype($field)) {
+                    $creationError = 'Value number ' . $field . ' must be ' . $type . ', ' . $givenClass . ' given.';
+                } else {
+                    $creationError = 'Value with field ' . $field . ' must be ' . $type . ', ' . $givenClass . ' given.';
+                }
+            }
+        }
+
+        if ($definitionError) {
+            $noErrors = false;
+            $this->definitionErrors[] = $definitionError;
+        }
+        if ($creationError) {
+            $noErrors = false;
+            $this->creationErrors[] = $creationError;
+        }
+
+        return $noErrors;
     }
 
     protected static function getStructureFields(string $class): array
@@ -270,20 +356,27 @@ abstract class AbstractStructure implements StructureInterface
         return $result;
     }
 
-    final protected function checkValues(array $values, array $fields): void
+    final protected function sanitizeValues(array $values, array $fields): array
     {
+        $sanitizedValues = [];
         foreach ($values as $field => $value) {
             $type = gettype($field);
             if ('integer' === $type) {
+                $sanitizedValues[$field] = $value;
                 continue;
             }
             if ('string' === $type) {
                 if (!isset($fields[$field])) {
                     $this->creationErrors[] = 'Unknown field: ' . $field;
                 }
+                $field = mb_strtolower($field);
+                $sanitizedValues[$field] = $value;
                 continue;
             }
             $this->creationErrors[] = 'Illegal field type ' . $type . ' for field ' . (string) $field;
         }
+
+        return $sanitizedValues;
     }
+
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Balpom\Entity\Structures;
 
 use Balpom\Entity\StructureInterface;
+use Balpom\Entity\StructureCollectionInterface;
 
 abstract class AbstractStructure implements StructureInterface
 {
@@ -123,14 +124,6 @@ abstract class AbstractStructure implements StructureInterface
             throw new StructureUsageException('Method ' . $method . ' not exists.');
         }
 
-        //$first = substr($method, 3, 1);
-        //$capital = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        /*
-          if (!str_contains($capital, $first)) {
-          throw new StructureUsageException('Incorrrect method name.');
-          }
-         */
-        ////$field = lcfirst(substr($method, 3));
         $field = substr($method, 3);
         $sanitizedField = mb_strtolower($field);
 
@@ -154,7 +147,6 @@ abstract class AbstractStructure implements StructureInterface
             $classFields = $class::getStructureFields($class);
             if (!empty($classFields)) {
                 foreach ($classFields as $field => $properties) {
-                    //$field = mb_strtolower($field);
                     $type = key($properties);
                     if (isset($this->typesSynonyms[$type])) {
                         $notNull = $properties[$type];
@@ -166,12 +158,6 @@ abstract class AbstractStructure implements StructureInterface
                 }
             }
         }
-        /*
-          foreach ($fields as $field => $properties) {
-          $field = mb_strtolower($field);
-          $this->fields[$field] = $properties;
-          }
-         */
         $this->fields = $fields;
 
         return $this->fields;
@@ -238,8 +224,6 @@ abstract class AbstractStructure implements StructureInterface
                 if (!$hasErrors) {
                     $this->values[$sanitizedField] = $value;
                 }
-
-                //echo 'NNN ' . $field . ' => ' . $value . PHP_EOL;
             }
         }
 
@@ -261,8 +245,6 @@ abstract class AbstractStructure implements StructureInterface
                 if (!$hasErrors) {
                     $this->values[$sanitizedField] = $value;
                 }
-
-                //echo 'SSS ' . $field . ' => ' . $value . PHP_EOL;
             }
         }
 
@@ -317,11 +299,12 @@ abstract class AbstractStructure implements StructureInterface
             }
         } else {
             $givenClass = get_class($value);
-            if (!is_a($value, $this->rootClass)) {
+            if (!is_a($value, $this->rootClass) && !is_a($value, StructureCollectionInterface::class)) {
+                $classes = $this->rootClass . ' or ' . StructureCollectionInterface::class;
                 if ('integer' === gettype($field)) {
-                    $definitionError = 'Value number ' . $field . ' must be ' . $this->rootClass . ' type, ' . $givenClass . ' given.';
+                    $definitionError = 'Value number ' . $field . ' must be ' . $classes . ' type, ' . $givenClass . ' given.';
                 } else {
-                    $definitionError = 'Value with field ' . $field . ' must be ' . $this->rootClass . ' type, ' . $givenClass . ' given.';
+                    $definitionError = 'Value with field ' . $field . ' must be ' . $classes . ' type, ' . $givenClass . ' given.';
                 }
             }
             if ($type !== $givenClass && !(class_exists($givenClass) && is_a($value, $type))) {

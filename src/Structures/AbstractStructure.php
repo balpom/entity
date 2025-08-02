@@ -10,7 +10,7 @@ use Balpom\Entity\StructureCollectionInterface;
 abstract class AbstractStructure implements StructureInterface
 {
     protected array $enabledTypes = ['string', 'array', 'object', 'boolean', 'integer', 'double'];
-    protected array $typesSynonyms = ['float' => 'double', 'bool' => 'boolean'];
+    protected array $typesSynonyms = ['bool' => 'boolean', 'int' => 'integer', 'float' => 'double'];
     protected array $values = [];
     protected static $field = [];
     protected string $rootClass = '';
@@ -147,13 +147,20 @@ abstract class AbstractStructure implements StructureInterface
             $classFields = $class::getStructureFields($class);
             if (!empty($classFields)) {
                 foreach ($classFields as $field => $properties) {
-                    $type = key($properties);
-                    if (isset($this->typesSynonyms[$type])) {
-                        $notNull = $properties[$type];
-                        $type = $this->typesSynonyms[$type];
-                        $properties = [];
-                        $properties[$type] = $notNull;
+                    $givenType = trim(key($properties));
+                    $types = $this->getTypesArray($givenType);
+                    $notNull = false;
+                    foreach ($types as $index => $type) {
+                        if (isset($this->typesSynonyms[$type])) {
+                            if (false === $notNull) {
+                                $notNull = $properties[$givenType];
+                            }
+                            $types[$index] = $this->typesSynonyms[$type];
+                        }
                     }
+                    $type = implode('|', $types);
+                    $properties = [];
+                    $properties[$type] = $notNull;
                     $fields[$field] = $properties;
                 }
             }
@@ -264,23 +271,83 @@ abstract class AbstractStructure implements StructureInterface
         }
     }
 
+    private function getTypes(array $parameters): array
+    {
+        $type = key($parameters);
+
+        return $this->getTypesArray($type);
+    }
+
+    private function getTypesArray(string $givenType): array
+    {
+        $givenType = trim($givenType);
+        $result = [];
+        if (false === strpos($givenType, '|')) {
+            $result[$givenType] = $givenType;
+        } else {
+            $temp = explode('|', $givenType);
+            foreach ($temp as $type) {
+                $type = trim($type);
+                $result[$type] = $type;
+            }
+        }
+
+        return $result;
+    }
+
     private function checkValues(int|string $field, mixed $value, array $parameters): bool
     {
-        $noErrors = true;
-        $type = key($parameters);
-        $required = $parameters[$type]; // TRUE | FALSE (NOT NULL | may be NULL)
-        $givenType = gettype($value);
+        // $field - rate
+        // $value - 1
+        // $parameters = integer|double => true
+
+        $noErrors = false;
+        $type = trim(key($parameters)); // integer|double
+        $required = $parameters[$type]; // TRUE | FALSE (meaning: NOT NULL | may be NULL)
+        $givenType = gettype($value); // integer
 
         if (null === $value && !$required) {
             return $noErrors;
         }
+
+        $types = $this->getTypes($parameters); // array integer|double
+        $typeForErrorMessage = $type; // integer|double
+
+        foreach ($types as $type) {
+            $checkResult = $this->checkTypes($type, $givenType, $required, $field, $value, $typeForErrorMessage);
+            if ($checkResult) {
+                $noErrors = true;
+            }
+        }
+
+        if (!empty($this->definitionErrors)) {
+            $noErrors = false;
+        }
+
+        if ($noErrors) {
+            $this->creationErrors = [];
+        }
+
+        return $noErrors;
+    }
+
+    private function checkTypes(
+            string $type,
+            string $givenType,
+            bool $required,
+            int|string $field,
+            mixed $value,
+            string $typeForErrorMessage
+    ): bool
+    {
+        $noErrors = true;
 
         $definitionError = false;
         $creationError = false;
 
         if ('object' !== $givenType && !('string' === gettype($type) && class_exists($type))) {
             if (!in_array($type, $this->enabledTypes)) {
-                $definitionError = 'Field ' . $field . ' has not enables type ' . $type . '.';
+                $definitionError = 'Field ' . $field . ' has not enabled type ' . $type . '.';
             }
             if ('NULL' === $givenType) {
                 if ($required) {
@@ -292,9 +359,9 @@ abstract class AbstractStructure implements StructureInterface
                 }
             } elseif ($type !== $givenType) {
                 if ('integer' === gettype($field)) {
-                    $creationError = 'Value number ' . $field . ' must be ' . $type . ', ' . $givenType . ' given.';
+                    $creationError = 'Value number ' . $field . ' must be ' . $typeForErrorMessage . ' type, ' . $givenType . ' given.';
                 } else {
-                    $creationError = 'Value with field ' . $field . ' must be ' . $type . ', ' . $givenType . ' given.';
+                    $creationError = 'Value with field ' . $field . ' must be ' . $typeForErrorMessage . ' type, ' . $givenType . ' given.';
                 }
             }
         } else {
@@ -309,9 +376,9 @@ abstract class AbstractStructure implements StructureInterface
             }
             if ($type !== $givenClass && !(class_exists($givenClass) && is_a($value, $type))) {
                 if ('integer' === gettype($field)) {
-                    $creationError = 'Value number ' . $field . ' must be ' . $type . ', ' . $givenClass . ' given.';
+                    $creationError = 'Value number ' . $field . ' must be ' . $typeForErrorMessage . ' type, ' . $givenClass . ' given.';
                 } else {
-                    $creationError = 'Value with field ' . $field . ' must be ' . $type . ', ' . $givenClass . ' given.';
+                    $creationError = 'Value with field ' . $field . ' must be ' . $typeForErrorMessage . ' type, ' . $givenClass . ' given.';
                 }
             }
         }

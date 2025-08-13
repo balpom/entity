@@ -72,6 +72,11 @@ class StructureCollection implements StructureCollectionInterface
         }
     }
 
+    public function count(): int
+    {
+        return count($this->collection);
+    }
+
     protected function checkOffsetSet(mixed $offset, mixed $value): void
     {
         if ('integer' !== gettype($offset)) {

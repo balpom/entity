@@ -6,7 +6,7 @@ namespace Balpom\Entity;
 
 use Balpom\Entity\StructureInterface;
 
-interface StructureCollectionInterface extends \Iterator, \ArrayAccess
+interface StructureCollectionInterface extends \Iterator, \ArrayAccess, \Countable
 {
     public function add(StructureInterface $structure): void;
     public function current(): StructureInterface;
@@ -18,4 +18,5 @@ interface StructureCollectionInterface extends \Iterator, \ArrayAccess
     public function offsetGet(mixed $offset): StructureInterface|null;
     public function offsetSet(mixed $offset, mixed $value): void;
     public function offsetUnset(mixed $offset): void;
+    public function count(): int;
 }

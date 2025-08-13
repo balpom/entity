@@ -307,7 +307,7 @@ abstract class AbstractStructure implements StructureInterface
         $givenType = gettype($value); // integer
 
         if (null === $value && !$required) {
-            return $noErrors;
+            return true;
         }
 
         $types = $this->getTypes($parameters); // array integer|double

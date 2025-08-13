@@ -145,19 +145,20 @@ abstract class AbstractStructure implements StructureInterface
         for ($i = $lastIndex; 0 <= $i; $i--) {
             $class = $this->hierarchy[$i];
             $classFields = $class::getStructureFields($class);
+
             if (!empty($classFields)) {
                 foreach ($classFields as $field => $properties) {
                     $givenType = trim(key($properties));
                     $types = $this->getTypesArray($givenType);
-                    $notNull = false;
+
                     foreach ($types as $index => $type) {
                         if (isset($this->typesSynonyms[$type])) {
-                            if (false === $notNull) {
-                                $notNull = $properties[$givenType];
-                            }
-                            $types[$index] = $this->typesSynonyms[$type];
+                            $type = $this->typesSynonyms[$type];
+                            $types[$index] = $type;
                         }
                     }
+
+                    $notNull = $properties[$givenType];
                     $type = implode('|', $types);
                     $properties = [];
                     $properties[$type] = $notNull;
@@ -190,7 +191,7 @@ abstract class AbstractStructure implements StructureInterface
 
         /*
          * For theoretically possibility, as sample:
-         * class Test extends AbstractStructure {
+          class Test extends AbstractStructure {
           protected static function fields(): void { self::$field['xyz'] = ['string' => false]; }
           }
          * and it's creation (without optional argument) as new Test()
@@ -297,21 +298,17 @@ abstract class AbstractStructure implements StructureInterface
 
     private function checkValues(int|string $field, mixed $value, array $parameters): bool
     {
-        // $field - rate
-        // $value - 1
-        // $parameters = integer|double => true
-
         $noErrors = false;
-        $type = trim(key($parameters)); // integer|double
+        $type = trim(key($parameters));
         $required = $parameters[$type]; // TRUE | FALSE (meaning: NOT NULL | may be NULL)
-        $givenType = gettype($value); // integer
+        $givenType = gettype($value);
 
         if (null === $value && !$required) {
             return true;
         }
 
-        $types = $this->getTypes($parameters); // array integer|double
-        $typeForErrorMessage = $type; // integer|double
+        $types = $this->getTypes($parameters);
+        $typeForErrorMessage = $type;
 
         foreach ($types as $type) {
             $checkResult = $this->checkTypes($type, $givenType, $required, $field, $value, $typeForErrorMessage);

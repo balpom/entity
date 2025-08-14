@@ -95,6 +95,7 @@ abstract class AbstractStructure implements StructureInterface
 
         $this->init();
         $this->fill($values);
+        $this->final();
     }
 
     /*
@@ -109,6 +110,14 @@ abstract class AbstractStructure implements StructureInterface
         self::$createFromArray = true;
         $class = get_called_class();
         return new $class($values);
+    }
+
+    /*
+     * May be overrided in children classes, if necessary.
+     */
+    protected function final(): void
+    {
+
     }
 
     public function hasField(string|int|float $field): bool

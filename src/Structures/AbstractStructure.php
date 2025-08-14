@@ -361,6 +361,12 @@ abstract class AbstractStructure implements StructureInterface
                     $creationError = 'Value with field ' . $field . ' must be ' . $typeForErrorMessage . ' type, ' . $givenType . ' given.';
                 }
             }
+        } elseif (null === $value) {
+            if ('integer' === gettype($field)) {
+                $creationError = 'Value number ' . $field . ' must be ' . $typeForErrorMessage . ' type, NULL given.';
+            } else {
+                $creationError = 'Value with field ' . $field . ' must be ' . $typeForErrorMessage . ' type, NULL given.';
+            }
         } else {
             $givenClass = get_class($value);
             if (!is_a($value, $this->rootClass) && !is_a($value, StructureCollectionInterface::class)) {

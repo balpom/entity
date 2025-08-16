@@ -25,7 +25,7 @@ interface StructureInterface
     public function getFields(): array;
 
     /*
-     * Returns TRUE if $key exists, returns FALSE if $key not exist.
+     * Returns TRUE if $field exists, returns FALSE if $field not exist.
      */
     public function hasField(string|int|float $field): bool;
 }

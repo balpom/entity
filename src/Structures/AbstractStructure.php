@@ -127,6 +127,28 @@ abstract class AbstractStructure implements StructureInterface
         return isset($fields[$field]);
     }
 
+    public function getField(string|int|float $field): array
+    {
+        $this->checkField($field);
+        $fields = $this->getFields();
+
+        return $fields[$field];
+    }
+
+    public function getFieldType(string|int|float $field): string
+    {
+        $field = $this->getField($field);
+
+        return key($field);
+    }
+
+    public function isFieldMandatory(string|int|float $field): bool
+    {
+        $field = $this->getField($field);
+
+        return array_pop($field);
+    }
+
     public function __call(string $method, array $params): string|array|object|bool|int|float|null
     {
         if ('get' !== substr($method, 0, 3) || 'get' === $method) {
@@ -178,6 +200,13 @@ abstract class AbstractStructure implements StructureInterface
         $this->fields = $fields;
 
         return $this->fields;
+    }
+
+    protected function checkField(string|int|float $field): void
+    {
+        if (!$this->hasField($field)) {
+            throw new StructureUsageException('Field ' . $field . ' not exists.');
+        }
     }
 
     protected function init(): void
